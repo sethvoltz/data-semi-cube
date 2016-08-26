@@ -26,14 +26,15 @@ class EdgeProtocol(basic.LineReceiver):
 class EdgeFactory(protocol.Factory):
     protocol = EdgeProtocol
 
-    def __init__(self):
+    def __init__(self, light_controller):
+        self.light_controller = light_controller
         self.dispatch = {
             'setColors': self.set_colors,
             'getColors': self.get_colors
         }
 
     def parse_command(self, line):
-        "Parse the incomming command and route to correct handler"
+        """Parse the incomming command and route to correct handler"""
 
         try:
             data = json.loads(line)
@@ -46,9 +47,16 @@ class EdgeFactory(protocol.Factory):
         return self.dispatch[data['command']](data)
 
     def set_colors(self, command):
-        deferred = defer.Deferred()
-        deferred.callback({ 'colors': [1, 2, 3, 4, 5, 6] })
-        return deferred
+        """Set the active color unless a lock is currently in place"""
+
+        if 'colors' not in command:
+            return defer.fail(Exception('No colors parameter was specified'))
+
+        try:
+            colors = self.light_controller.set(command['colors'])
+            return defer.succeed({ 'colors': colors })
+        except:
+            return defer.fail(Exception('Unable to set colors due to unknown error'))
 
     def get_colors(self, command):
         deferred = defer.Deferred()
@@ -76,8 +84,19 @@ class EdgeFactory(protocol.Factory):
         return deferred
 
 
+class LightController:
+    """Run the lights themselves"""
+
+    def __init__(self):
+        pass
+
+    def set(self, colors):
+        return colors
+
+
 def main():
-    endpoints.serverFromString(reactor, "tcp:1234").listen(EdgeFactory())
+    light_controller = LightController()
+    endpoints.serverFromString(reactor, "tcp:1234").listen(EdgeFactory(light_controller))
     reactor.run()
 
 if __name__ == '__main__':
