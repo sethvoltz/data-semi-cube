@@ -1,0 +1,55 @@
+#!/usr/bin/python
+
+import socket
+import sys
+import json
+
+HOSTNAME = "localhost"
+PORT     = 1234
+
+def recvall(sock):
+  total_data=[]
+
+  while True:
+    data = sock.recv(8192)
+    if not data: break
+    total_data.append(data)
+
+  return ''.join(total_data)
+
+def main(colors):
+  numColors = len(colors)
+  colorSet = []
+
+  if numColors >= 6:
+    colorSet = colors[0:6]
+  elif numColors >= 3:
+    colorSet = (colors[0:1] * 2) + (colors[1:2] * 2) + (colors[2:3] * 2)
+  elif numColors == 2:
+    colorSet = (colors[0:2] * 3)
+  elif numColors == 1:
+    colorSet = (colors[0:1] * 6)
+  else:
+    colorSet = [0] * 6
+
+  print "colors: " + str(colorSet)
+  data = json.dumps({
+    'command': 'setColors',
+    'colors': colorSet
+  })
+
+  sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+  sock.connect(HOSTNAME, PORT)
+
+  try:
+    sock.sendall(data)
+    response = recvall(sock)
+
+  finally:
+    sock.close()
+
+  print response
+
+
+if __name__ == '__main__':
+  main(sys.argv[1:])
