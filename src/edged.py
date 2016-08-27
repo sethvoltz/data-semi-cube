@@ -69,7 +69,8 @@ class EdgeFactory(protocol.Factory):
             colors = self.light_controller.set(command['colors'])
             return defer.succeed({ 'colors': colors })
         except:
-            return defer.fail(Exception('Unable to set colors due to unknown error'))
+            return defer.fail()
+            # return defer.fail(Exception('Unable to set colors due to unknown error'))
 
     def get_colors(self, command):
         deferred = defer.Deferred()
