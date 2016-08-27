@@ -112,22 +112,22 @@ class LightController:
             ws.WS2811_STRIP_GRB)
 
         # Intialize the library (must be called once before other functions).
-        strip.begin()
+        self.strip.begin()
 
-    def hexToRgb(value):
+    def hexToRgb(self, value):
         value = value.lstrip('#')
         lv = len(value)
         return Color(*(int(value[i:i + lv // 3], 16) for i in range(0, lv, lv // 3)))
 
     def set(self, colors):
-        if len(colors) < strip.numPixels():
+        if len(colors) < self.strip.numPixels():
             raise Exception('Insufficient colors specified')
 
-        colorSet = map(hexToRgb, colors[0:strip.numPixels()])
+        colorSet = map(hexToRgb, colors[0:self.strip.numPixels()])
 
-        for i in range(strip.numPixels()):
-            strip.setPixelColor(i, colorSet[i])
-            strip.show()
+        for i in range(self.strip.numPixels()):
+            self.strip.setPixelColor(i, colorSet[i])
+            self.strip.show()
 
         return colors
 
