@@ -1,6 +1,18 @@
+#!/usr/bin/python
+
 from twisted.internet import protocol, reactor, endpoints, defer
 from twisted.protocols import basic
+from neopixel import *
+from itertools import chain, repeat
 import json
+
+# LED strip configuration:
+LED_COUNT      = 6       # Number of LED pixels.
+LED_PIN        = 18      # GPIO pin connected to the pixels (must support PWM!)
+LED_FREQ_HZ    = 800000  # LED signal frequency in hertz (usually 800khz)
+LED_DMA        = 5       # DMA channel to use for generating signal (try 5)
+LED_BRIGHTNESS = 255     # Set to 0 for darkest and 255 for brightest
+
 
 class EdgeProtocol(basic.LineReceiver):
     def lineReceived(self, line):
@@ -87,15 +99,47 @@ class EdgeFactory(protocol.Factory):
 class LightController:
     """Run the lights themselves"""
 
-    def __init__(self):
-        pass
+    def __init__(self, config):
+        # Create NeoPixel object with appropriate configuration.
+        self.strip = Adafruit_NeoPixel(
+            config['led_count'],
+            config['led_pin'],
+            config['frequency'],
+            config['dma_channel'],
+            False, # invert signal
+            config['brightness'],
+            0, # channel (default 0)
+            ws.WS2811_STRIP_GRB)
+
+        # Intialize the library (must be called once before other functions).
+        strip.begin()
+
+    def hexToRgb(value):
+        value = value.lstrip('#')
+        lv = len(value)
+        return Color(*(int(value[i:i + lv // 3], 16) for i in range(0, lv, lv // 3)))
 
     def set(self, colors):
+        if len(colors) < strip.numPixels():
+            raise Exception('Insufficient colors specified')
+
+        colorSet = map(hexToRgb, colors[0:strip.numPixels()])
+
+        for i in range(strip.numPixels()):
+            strip.setPixelColor(i, colorSet[i])
+            strip.show()
+
         return colors
 
 
 def main():
-    light_controller = LightController()
+    light_controller = LightController({
+        'led_count': LED_COUNT,
+        'led_pin': LED_PIN,
+        'frequency': LED_FREQ_HZ,
+        'dma_channel': LED_DMA,
+        'brightness': LED_BRIGHTNESS
+    })
     endpoints.serverFromString(reactor, "tcp:1234").listen(EdgeFactory(light_controller))
     reactor.run()
 
