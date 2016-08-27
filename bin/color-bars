@@ -30,7 +30,7 @@ def main(colors):
   elif numColors == 1:
     colorSet = (colors[0:1] * 6)
   else:
-    colorSet = [0] * 6
+    colorSet = ["000000"] * 6
 
   print "colors: " + str(colorSet)
   data = json.dumps({
@@ -39,10 +39,10 @@ def main(colors):
   })
 
   sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-  sock.connect(HOSTNAME, PORT)
+  sock.connect((HOSTNAME, PORT))
 
   try:
-    sock.sendall(data)
+    sock.sendall(data + "\r\n")
     response = recvall(sock)
 
   finally:
