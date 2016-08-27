@@ -29,7 +29,8 @@ class EdgeProtocol(basic.LineReceiver):
         def onError(err):
             self.transport.write(json.dumps({
                 'success': False,
-                'message': err.getErrorMessage()
+                'message': err.getErrorMessage(),
+                'trace': str(err)
                 }) + "\r\n")
             self.transport.loseConnection()
         deferred.addErrback(onError)
