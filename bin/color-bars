@@ -32,8 +32,7 @@ def main(colors):
   else:
     colorSet = ["000000"] * 6
 
-  print "colors: " + str(colorSet)
-  data = json.dumps({
+  command = json.dumps({
     'command': 'setColors',
     'colors': colorSet
   })
@@ -42,14 +41,14 @@ def main(colors):
   sock.connect((HOSTNAME, PORT))
 
   try:
-    sock.sendall(data + "\r\n")
-    response = recvall(sock)
+    sock.sendall(command + "\r\n")
+    response = json.loads(recvall(sock))
 
   finally:
     sock.close()
 
-  print response
-
+  if not response['success']:
+    sys.exit(1)
 
 if __name__ == '__main__':
   main(sys.argv[1:])
