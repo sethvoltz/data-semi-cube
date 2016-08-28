@@ -17,28 +17,9 @@ def recvall(sock):
 
   return ''.join(total_data)
 
-def main(colors):
-  numColors = len(colors)
-  colorSet = []
-
-  if numColors >= 6:
-    colorSet = colors[0:6]
-  elif numColors >= 3:
-    colorSet = (colors[0:1] * 2) + (colors[1:2] * 2) + (colors[2:3] * 2)
-  elif numColors == 2:
-    colorSet = (colors[0:2] * 3)
-  elif numColors == 1:
-    colorSet = (colors[0:1] * 6)
-  else:
-    colorSet = ["000000"] * 6
-
-  command = json.dumps({
-    'command': 'setColors',
-    'colors': colorSet
-  })
-
+def do_network(hostname, port, data):
   sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-  sock.connect((HOSTNAME, PORT))
+  sock.connect((hostname, port))
 
   try:
     sock.sendall(command + "\r\n")
@@ -47,7 +28,31 @@ def main(colors):
   finally:
     sock.close()
 
-  if not response['success']:
+  return response
+
+def normalize_colors(colors):
+  num_colors = len(colors)
+
+  if num_colors >= 6:
+    return colors[0:6]
+  elif num_colors >= 3:
+    return (colors[0:1] * 2) + (colors[1:2] * 2) + (colors[2:3] * 2)
+  elif num_colors == 2:
+    return (colors[0:2] * 3)
+  elif num_colors == 1:
+    return (colors[0:1] * 6)
+  else:
+    return ["000000"] * 6
+
+def main(colors):
+  response = do_network(HOSTNAME, PORT, json.dumps({
+    'command': 'setColors',
+    'colors': normalize_colors(colors)
+  }))
+
+  if 'success' not in response or not response['success']:
+    message = response['message'] if 'message' in response else 'Bad response'
+    print >> sys.stderr, 'Error setting color bars: ' + message
     sys.exit(1)
 
 if __name__ == '__main__':
