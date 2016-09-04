@@ -102,6 +102,8 @@ class LightController:
     """Run the lights themselves"""
 
     def __init__(self, config):
+        self.current_colors = []
+
         # Create NeoPixel object with appropriate configuration.
         self.strip = Adafruit_NeoPixel(
             config['led_count'],
@@ -115,23 +117,35 @@ class LightController:
 
         # Intialize the library (must be called once before other functions).
         self.strip.begin()
+        self.reset()
 
     def hexToRgb(self, value):
         value = value.lstrip('#')
         lv = len(value)
         return Color(*(int(value[i:i + lv // 3], 16) for i in range(0, lv, lv // 3)))
 
+    def reset(self):
+        self.set([0] * config['led_count'])
+
     def set(self, colors):
         if len(colors) < self.strip.numPixels():
             raise Exception('Insufficient colors specified')
 
-        colorSet = map(self.hexToRgb, colors[0:self.strip.numPixels()])
+        if type(colors[0]) is string:
+            colorSet = map(self.hexToRgb, colors[0:self.strip.numPixels()])
+        else:
+            colorSet = colors[0:self.strip.numPixels()]
 
         for i in range(self.strip.numPixels()):
             self.strip.setPixelColor(i, colorSet[i])
-            self.strip.show()
+
+        self.strip.show()
+        self.current_colors = colorSet
 
         return colors
+
+    def get(self):
+        return self.current_colors
 
 
 def main():
