@@ -103,6 +103,7 @@ class LightController:
 
     def __init__(self, config):
         self.current_colors = []
+        self.config = config
 
         # Create NeoPixel object with appropriate configuration.
         self.strip = Adafruit_NeoPixel(
@@ -125,7 +126,7 @@ class LightController:
         return Color(*(int(value[i:i + lv // 3], 16) for i in range(0, lv, lv // 3)))
 
     def reset(self):
-        self.set([0] * config['led_count'])
+        self.set([0] * self.config['led_count'])
 
     def set(self, colors):
         if len(colors) < self.strip.numPixels():
