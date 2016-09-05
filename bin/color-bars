@@ -22,7 +22,7 @@ def do_network(hostname, port, data):
   sock.connect((hostname, port))
 
   try:
-    sock.sendall(command + "\r\n")
+    sock.sendall(data + "\r\n")
     response = json.loads(recvall(sock))
 
   finally:

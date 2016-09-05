@@ -132,7 +132,7 @@ class LightController:
         if len(colors) < self.strip.numPixels():
             raise Exception('Insufficient colors specified')
 
-        if type(colors[0]) is string:
+        if isinstance(colors[0], basestring):
             colorSet = map(self.hexToRgb, colors[0:self.strip.numPixels()])
         else:
             colorSet = colors[0:self.strip.numPixels()]
