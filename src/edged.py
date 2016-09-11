@@ -122,7 +122,7 @@ class LightController:
         self.strip.begin()
         self.reset()
 
-    def hexToRgb(self, value):
+    def hex_to_rgb(self, value):
         value = value.lstrip('#')
         lv = len(value)
         return Color(*(int(value[i:i + lv // 3], 16) for i in range(0, lv, lv // 3)))
@@ -135,15 +135,15 @@ class LightController:
             raise Exception('Insufficient colors specified')
 
         if isinstance(colors[0], basestring):
-            colorSet = map(self.hexToRgb, colors[0:self.strip.numPixels()])
+            color_set = map(self.hex_to_rgb, colors[0:self.strip.numPixels()])
         else:
-            colorSet = colors[0:self.strip.numPixels()]
+            color_set = colors[0:self.strip.numPixels()]
 
         for i in range(self.strip.numPixels()):
-            self.strip.setPixelColor(i, colorSet[i])
+            self.strip.setPixelColor(i, color_set[i])
 
         self.strip.show()
-        self.current_colors = colorSet
+        self.current_colors = color_set
 
         return colors
 
