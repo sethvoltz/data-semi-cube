@@ -13,7 +13,6 @@ LED_FREQ_HZ    = 800000  # LED signal frequency in hertz (usually 800khz)
 LED_DMA        = 5       # DMA channel to use for generating signal (try 5)
 LED_BRIGHTNESS = 255     # Set to 0 for darkest and 255 for brightest
 
-
 class EdgeProtocol(basic.LineReceiver):
     def lineReceived(self, line):
         if not line.strip():
@@ -166,7 +165,7 @@ def main():
         'brightness': LED_BRIGHTNESS
     })
 
-    endpoints.serverFromString(reactor, "tcp:1234").listen(EdgeFactory(light_controller))
+    endpoints.serverFromString(reactor, "tcp:8300").listen(EdgeFactory(light_controller))
     reactor.run()
     print 'Edge Service Started'
 

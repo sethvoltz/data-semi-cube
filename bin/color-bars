@@ -5,7 +5,7 @@ import sys
 import json
 
 HOSTNAME = "localhost"
-PORT     = 1234
+PORT     = 8300
 
 def recvall(sock):
   total_data=[]
