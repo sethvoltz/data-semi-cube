@@ -1,0 +1,10 @@
+[Unit]
+Description=Data SemiCube Edge Daemon
+After=multi-user.target
+
+[Service]
+Type=idle
+ExecStart=/usr/bin/python /home/pi/Projects/data-semi-cube/src/edged.py
+
+[Install]
+WantedBy=multi-user.target
