@@ -129,6 +129,7 @@ class LightController:
 
     def reset(self):
         self.set([0] * self.config['led_count'])
+        print 'Edge colors reset to off'
 
     def set(self, colors):
         if len(colors) < self.strip.numPixels():
@@ -152,6 +153,7 @@ class LightController:
 
 
 def main():
+    print 'Starting Data Semi Cube Edge Service...'
     light_controller = LightController({
         'led_count': LED_COUNT,
         'led_pin': LED_PIN,
@@ -159,8 +161,10 @@ def main():
         'dma_channel': LED_DMA,
         'brightness': LED_BRIGHTNESS
     })
+
     endpoints.serverFromString(reactor, "tcp:1234").listen(EdgeFactory(light_controller))
     reactor.run()
+    print 'Edge Service Started'
 
 if __name__ == '__main__':
     main()
