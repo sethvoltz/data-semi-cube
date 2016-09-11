@@ -16,6 +16,10 @@ LED_BRIGHTNESS = 255     # Set to 0 for darkest and 255 for brightest
 
 class EdgeProtocol(basic.LineReceiver):
     def lineReceived(self, line):
+        if not line.strip():
+            self.transport.loseConnection()
+            return
+
         deferred = self.factory.parse_command(line)
 
         def writeResponse(data):
@@ -23,7 +27,7 @@ class EdgeProtocol(basic.LineReceiver):
                 'success': True,
                 'data': data
                 }) + "\r\n")
-            self.transport.loseConnection()
+            # self.transport.loseConnection()
         deferred.addCallback(writeResponse)
 
         def onError(err):
