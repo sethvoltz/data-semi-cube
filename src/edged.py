@@ -85,7 +85,13 @@ class EdgeFactory(protocol.Factory):
         return self.dispatch[data['command']](data)
 
     def set_colors(self, command):
-        """Set the active color unless a lock is currently in place"""
+        """
+        Set the active color unless a lock is currently in place
+
+        colors - A set of colors equal in length to the device requirements
+                 null values may be used to not set that light
+        mode - The minimum mode required to show these colors
+        """
 
         if 'colors' not in command:
             return defer.fail(Exception('No colors parameter was specified'))
@@ -123,8 +129,10 @@ class EdgeFactory(protocol.Factory):
             return defer.fail()
 
     def request_lock(self, command):
-        # duration - max millis to hold lock
-        # lights - which lights to lock, array of indices (0..5)
+        """
+        duration - max millis to hold lock
+        lights - which lights to lock, array of indices (0..5)
+        """
 
         if 'duration' not in command:
             return defer.fail(Exception('No lock duration specified'))
@@ -159,6 +167,10 @@ class EdgeFactory(protocol.Factory):
         })
 
     def release_lock(self, command):
+        """
+        lock - the lock code to release
+        """
+
         if 'lock' not in command:
             return defer.fail(Exception('No lock code specified'))
 
@@ -169,6 +181,15 @@ class EdgeFactory(protocol.Factory):
         return defer.succeed({ 'lock': command['lock'] })
 
     def set_mode(self, command):
+        """
+        Most services will want to push individual colors (weather, stock, etc)
+        as "ambient" priority while animations will generally use "normal"
+        level. Information such as alerts, emergency notifications, etc, may use
+        the "critical" level.
+
+        mode - The mode to set the device to
+        """
+
         if 'mode' not in command:
             return defer.fail(Exception('No mode specified'))
 
@@ -192,6 +213,8 @@ class EdgeFactory(protocol.Factory):
 
     def get_mode(self, command):
         return defer.succeed({ 'mode': EdgeMode.name[self.mode] })
+
+    # =------------------------------------------------------------------------=
 
     def clear_lock(self, lock_code):
         call_id = self.lock_map.pop(lock_code, None)
