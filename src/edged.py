@@ -44,7 +44,7 @@ class EdgeFactory(protocol.Factory):
 
     def __init__(self, light_controller):
         self.light_controller = light_controller
-        self.active_locks = [ None, None, None ]
+        self.active_locks = [ None ] * 6
         self.lock_map = {}
         self.dispatch = {
             'setColors':   self.set_colors,
@@ -75,11 +75,23 @@ class EdgeFactory(protocol.Factory):
             return defer.fail(Exception('No colors parameter was specified'))
 
         try:
-            colors = self.light_controller.set(command['colors'])
-            return defer.succeed({ 'colors': colors })
+            if 'lock' in command:
+                if command['lock'] not in self.active_locks:
+                    return defer.fail(Exception('Lock code unknown or expired'))
+
+                else:
+                    locked_colors = [ x if self.active_locks[i] == command['lock'] else None for i, x in enumerate(command['colors']) ]
+                    self.light_controller.set(locked_colors, save=False)
+
+            else:
+                locked_colors = [ x if self.active_locks[i] else None for i, x in enumerate(command['colors']) ]
+                active_colors = [ x if not self.active_locks[i] else None for i, x in enumerate(command['colors']) ]
+                self.light_controller.set(locked_colors, show=False)
+                self.light_controller.set(active_colors)
+
+            return defer.succeed({ 'colors': self.light_controller.get() })
         except:
             return defer.fail()
-            # return defer.fail(Exception('Unable to set colors due to unknown error'))
 
     def get_colors(self, command):
         try:
@@ -90,21 +102,21 @@ class EdgeFactory(protocol.Factory):
 
     def request_lock(self, command):
         # duration - max millis to hold lock
-        # bars - which bars to lock, array of indices (0, 1, 2)
+        # lights - which lights to lock, array of indices (0..5)
 
         if 'duration' not in command:
             return defer.fail(Exception('No lock duration specified'))
 
-        if 'bars' not in command or len(command['bars']) < 1:
-            return defer.fail(Exception('No bar lock set specified'))
+        if 'lights' not in command or len(command['lights']) < 1:
+            return defer.fail(Exception('No light lock set specified'))
 
-        if len([ bar for bar in command['bars'] if self.active_locks[bar] ]) > 0:
-            return defer.fail(Exception('One or more requested bars already locked'))
+        if len([ light for light in command['lights'] if self.active_locks[light] ]) > 0:
+            return defer.fail(Exception('One or more requested lights already locked'))
 
         # Conditions met, let's award a lock
         lock_code = str(uuid.uuid4())
-        for bar in command['bars']:
-            self.active_locks[bar] = lock_code
+        for light in command['lights']:
+            self.active_locks[light] = lock_code
 
         self.lock_map[lock_code] = reactor.callLater(
             command['duration'] / 1000,
@@ -114,7 +126,7 @@ class EdgeFactory(protocol.Factory):
 
         return defer.succeed({
             'lock': lock_code,
-            'bars': command['bars'],
+            'lights': command['lights'],
             'duration': command['duration']
         })
 
@@ -143,9 +155,17 @@ class EdgeFactory(protocol.Factory):
         if call_id and call_id.active():
             call_id.cancel()
 
+        colors = self.light_controller.get()
+        locked_colors = [ x if self.active_locks[i] == lock_code else None for i, x in enumerate(colors) ]
+
         for index, code in enumerate(self.active_locks):
             if code == lock_code:
                 self.active_locks[index] = None
+
+        try:
+            self.light_controller.set(locked_colors, save=False)
+        except:
+            pass # eat error
 
 
 class LightController:
@@ -185,16 +205,17 @@ class LightController:
         self.set([0] * self.config['led_count'])
         print 'Edge colors reset to off'
 
-    def set(self, colors):
+    def set(self, colors, save=True, show=True):
         if len(colors) < self.strip.numPixels():
             raise Exception('Insufficient colors specified')
 
         color_set = map(self.clean_color, colors[0:self.strip.numPixels()])
 
         for i in range(self.strip.numPixels()):
+            print >> sys.stderr, 'Set: ' + str(color_set[i]) + ', save=' + str(save) + ', show=' + str(show)
             if color_set[i] is not None:
-                self.strip.setPixelColor(i, color_set[i])
-                self.current_colors[i] = color_set[i]
+                if show: self.strip.setPixelColor(i, color_set[i])
+                if save: self.current_colors[i] = color_set[i]
 
         self.strip.show()
 
