@@ -98,12 +98,24 @@ class EdgeFactory(protocol.Factory):
                     return defer.fail(Exception('Lock code unknown or expired'))
 
                 else:
-                    locked_colors = [ x if self.active_locks[i] == command['lock'] else None for i, x in enumerate(command['colors']) ]
+                    locked_colors = [ color
+                        if self.active_locks[index] == command['lock']
+                        else None
+                        for index, color
+                        in enumerate(command['colors']) ]
                     self.light_controller.set(locked_colors, save=False)
 
             else:
-                locked_colors = [ x if self.active_locks[i] else None for i, x in enumerate(command['colors']) ]
-                active_colors = [ x if not self.active_locks[i] else None for i, x in enumerate(command['colors']) ]
+                locked_colors = [ color
+                    if self.active_locks[index]
+                    else None
+                    for index, color
+                    in enumerate(command['colors']) ]
+                active_colors = [ color
+                    if not self.active_locks[index]
+                    else None
+                    for index, color
+                    in enumerate(command['colors']) ]
                 self.light_controller.set(locked_colors, show=False)
                 self.light_controller.set(active_colors)
 
@@ -212,7 +224,11 @@ class EdgeFactory(protocol.Factory):
             call_id.cancel()
 
         colors = self.light_controller.get()
-        locked_colors = [ x if self.active_locks[i] == lock_code else None for i, x in enumerate(colors) ]
+        locked_colors = [ color
+            if self.active_locks[index] == lock_code
+            else None
+            for index, color
+            in enumerate(colors) ]
 
         for index, code in enumerate(self.active_locks):
             if code == lock_code:
