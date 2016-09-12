@@ -11,6 +11,7 @@ import uuid
 # Local modules
 from cube import CubeMode
 
+# =------------------------------------------------------------------------------= Configuration =--=
 # LED strip configuration:
 LED_COUNT      = 6       # Number of LED pixels.
 LED_PIN        = 18      # GPIO pin connected to the pixels (must support PWM!)
@@ -18,7 +19,7 @@ LED_FREQ_HZ    = 800000  # LED signal frequency in hertz (usually 800khz)
 LED_DMA        = 5       # DMA channel to use for generating signal (try 5)
 LED_BRIGHTNESS = 255     # Set to 0 for darkest and 255 for brightest
 
-# =----------------------------------------------------------------------------=
+# =--------------------------------------------------------------------------= Network Protocol =--=
 class EdgeProtocol(basic.LineReceiver):
     def lineReceived(self, line):
         if not line.strip():
@@ -73,6 +74,8 @@ class EdgeFactory(protocol.Factory):
             return defer.fail(Exception('Unknown or missing command'))
 
         return self.dispatch[data['command']](data)
+
+    # Protocol Commands
 
     def set_colors(self, command):
         """
@@ -216,7 +219,7 @@ class EdgeFactory(protocol.Factory):
     def get_mode(self, command):
         return defer.succeed({ 'mode': CubeMode.name[self.mode] })
 
-    # =------------------------------------------------------------------------=
+    # Helper Functions
 
     def clear_lock(self, lock_code):
         call_id = self.lock_map.pop(lock_code, None)
@@ -240,7 +243,7 @@ class EdgeFactory(protocol.Factory):
             pass # eat error
 
 
-# =----------------------------------------------------------------------------=
+# =--------------------------------------------------------------------------= Light Controller =--=
 class LightController:
     """Run the lights themselves"""
 
@@ -297,7 +300,7 @@ class LightController:
         return self.current_colors
 
 
-# =----------------------------------------------------------------------------=
+# =--------------------------------------------------------------------------------------= Main =--=
 def main():
     print 'Starting Data Semi Cube Edge Service...'
     light_controller = LightController({
