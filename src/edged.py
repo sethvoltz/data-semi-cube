@@ -4,6 +4,7 @@ from twisted.internet import protocol, reactor, endpoints, defer
 from twisted.protocols import basic
 from neopixel import *
 from itertools import chain, repeat
+from collections import defaultdict
 import sys
 import json
 import uuid
@@ -14,6 +15,19 @@ LED_PIN        = 18      # GPIO pin connected to the pixels (must support PWM!)
 LED_FREQ_HZ    = 800000  # LED signal frequency in hertz (usually 800khz)
 LED_DMA        = 5       # DMA channel to use for generating signal (try 5)
 LED_BRIGHTNESS = 255     # Set to 0 for darkest and 255 for brightest
+
+# Kudos http://stackoverflow.com/a/1695250/772207
+#   and http://stackoverflow.com/a/23933745/772207
+def enum(*sequential, **named):
+    obj = defaultdict(lambda: None, zip(sequential, range(len(sequential))), **named)
+    reverse = defaultdict(lambda: None, ((value, key) for key, value in obj.iteritems()))
+    enums = obj.copy()
+    enums['lookup'] = obj
+    enums['name'] = reverse
+    return type('Enum', (), enums)
+
+EdgeMode = enum('Normal', 'Ambient', 'Critical')
+
 
 class EdgeProtocol(basic.LineReceiver):
     def lineReceived(self, line):
@@ -46,6 +60,8 @@ class EdgeFactory(protocol.Factory):
         self.light_controller = light_controller
         self.active_locks = [ None ] * 6
         self.lock_map = {}
+        self.mode = EdgeMode.Normal
+
         self.dispatch = {
             'setColors':   self.set_colors,
             'getColors':   self.get_colors,
@@ -141,14 +157,28 @@ class EdgeFactory(protocol.Factory):
         return defer.succeed({ 'lock': command['lock'] })
 
     def set_mode(self, command):
-        deferred = defer.Deferred()
-        deferred.errback(Exception('Not Implemented'))
-        return deferred
+        if 'mode' not in command:
+            return defer.fail(Exception('No mode specified'))
+
+        mode = EdgeMode.lookup[command['mode']]
+        if not mode:
+            return defer.fail(Exception('Unknown mode specified'))
+
+        self.mode = mode
+
+        # also, clear all locks and reset the lights
+        for key in self.lock_map.keys():
+            self.clear_lock(key)
+
+        try:
+            self.light_controller.reset()
+        except:
+            pass
+
+        return defer.succeed({ 'mode': EdgeMode.name[self.mode] })
 
     def get_mode(self, command):
-        deferred = defer.Deferred()
-        deferred.errback(Exception('Not Implemented'))
-        return deferred
+        return defer.succeed({ 'mode': EdgeMode.name[self.mode] })
 
     def clear_lock(self, lock_code):
         call_id = self.lock_map.pop(lock_code, None)
@@ -212,7 +242,6 @@ class LightController:
         color_set = map(self.clean_color, colors[0:self.strip.numPixels()])
 
         for i in range(self.strip.numPixels()):
-            print >> sys.stderr, 'Set: ' + str(color_set[i]) + ', save=' + str(save) + ', show=' + str(show)
             if color_set[i] is not None:
                 if show: self.strip.setPixelColor(i, color_set[i])
                 if save: self.current_colors[i] = color_set[i]
