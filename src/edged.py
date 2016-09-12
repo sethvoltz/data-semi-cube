@@ -15,6 +15,7 @@ LED_FREQ_HZ    = 800000  # LED signal frequency in hertz (usually 800khz)
 LED_DMA        = 5       # DMA channel to use for generating signal (try 5)
 LED_BRIGHTNESS = 255     # Set to 0 for darkest and 255 for brightest
 
+# =----------------------------------------------------------------------------=
 # Kudos http://stackoverflow.com/a/1695250/772207
 def enum(*sequential, **named):
     obj = dict(zip(sequential, range(len(sequential))), **named)
@@ -29,6 +30,7 @@ def enum(*sequential, **named):
 EdgeMode = enum('normal', 'ambient', 'critical')
 
 
+# =----------------------------------------------------------------------------=
 class EdgeProtocol(basic.LineReceiver):
     def lineReceived(self, line):
         if not line.strip():
@@ -234,6 +236,7 @@ class EdgeFactory(protocol.Factory):
             pass # eat error
 
 
+# =----------------------------------------------------------------------------=
 class LightController:
     """Run the lights themselves"""
 
@@ -290,6 +293,7 @@ class LightController:
         return self.current_colors
 
 
+# =----------------------------------------------------------------------------=
 def main():
     print 'Starting Data Semi Cube Edge Service...'
     light_controller = LightController({
