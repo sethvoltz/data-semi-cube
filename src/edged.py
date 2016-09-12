@@ -152,7 +152,7 @@ class LightController:
     """Run the lights themselves"""
 
     def __init__(self, config):
-        self.current_colors = []
+        self.current_colors = [0] * config['led_count']
         self.config = config
 
         # Create NeoPixel object with appropriate configuration.
@@ -170,6 +170,12 @@ class LightController:
         self.strip.begin()
         self.reset()
 
+    def clean_color(self, value):
+        if value == None: return None
+        if isinstance(value, int): return value
+        if isinstance(value, basestring): return self.hex_to_rgb(value)
+        return None # fallback, unknown value type
+
     def hex_to_rgb(self, value):
         value = value.lstrip('#')
         lv = len(value)
@@ -183,18 +189,16 @@ class LightController:
         if len(colors) < self.strip.numPixels():
             raise Exception('Insufficient colors specified')
 
-        if isinstance(colors[0], basestring):
-            color_set = map(self.hex_to_rgb, colors[0:self.strip.numPixels()])
-        else:
-            color_set = colors[0:self.strip.numPixels()]
+        color_set = map(self.clean_color, colors[0:self.strip.numPixels()])
 
         for i in range(self.strip.numPixels()):
-            self.strip.setPixelColor(i, color_set[i])
+            if color_set[i] is not None:
+                self.strip.setPixelColor(i, color_set[i])
+                self.current_colors[i] = color_set[i]
 
         self.strip.show()
-        self.current_colors = color_set
 
-        return colors
+        return self.current_colors
 
     def get(self):
         return self.current_colors
