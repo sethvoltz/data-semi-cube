@@ -8,27 +8,15 @@ import sys
 import json
 import uuid
 
+# Local modules
+from cube import CubeMode
+
 # LED strip configuration:
 LED_COUNT      = 6       # Number of LED pixels.
 LED_PIN        = 18      # GPIO pin connected to the pixels (must support PWM!)
 LED_FREQ_HZ    = 800000  # LED signal frequency in hertz (usually 800khz)
 LED_DMA        = 5       # DMA channel to use for generating signal (try 5)
 LED_BRIGHTNESS = 255     # Set to 0 for darkest and 255 for brightest
-
-# =----------------------------------------------------------------------------=
-# Kudos http://stackoverflow.com/a/1695250/772207
-def enum(*sequential, **named):
-    obj = dict(zip(sequential, range(len(sequential))), **named)
-    enums = obj.copy()
-    reverse = dict((value, key) for key, value in obj.iteritems())
-    obj.setdefault(None)
-    reverse.setdefault(None)
-    enums['lookup'] = obj
-    enums['name'] = reverse
-    return type('Enum', (), enums)
-
-EdgeMode = enum('normal', 'ambient', 'critical')
-
 
 # =----------------------------------------------------------------------------=
 class EdgeProtocol(basic.LineReceiver):
@@ -62,7 +50,7 @@ class EdgeFactory(protocol.Factory):
         self.light_controller = light_controller
         self.active_locks = [ None ] * 6
         self.lock_map = {}
-        self.mode = EdgeMode.normal
+        self.mode = CubeMode.normal
 
         self.dispatch = {
             'setColors':   self.set_colors,
@@ -101,7 +89,7 @@ class EdgeFactory(protocol.Factory):
         if 'mode' not in command:
             command['mode'] = 'normal'
 
-        if EdgeMode.lookup[command['mode']] < self.mode:
+        if CubeMode.lookup[command['mode']] < self.mode:
             return defer.fail(Exception('Specified mode is less than current device mode'))
 
         try:
@@ -145,7 +133,7 @@ class EdgeFactory(protocol.Factory):
         if 'mode' not in command:
             command['mode'] = 'normal'
 
-        if EdgeMode.lookup[command['mode']] < self.mode:
+        if CubeMode.lookup[command['mode']] < self.mode:
             return defer.fail(Exception('Specified mode is less than current device mode'))
 
         if len([ light for light in command['lights'] if self.active_locks[light] ]) > 0:
@@ -195,7 +183,7 @@ class EdgeFactory(protocol.Factory):
         if 'mode' not in command:
             return defer.fail(Exception('No mode specified'))
 
-        mode = EdgeMode.lookup[command['mode']]
+        mode = CubeMode.lookup[command['mode']]
         if mode == None:
             return defer.fail(Exception('Unknown mode specified'))
 
@@ -211,10 +199,10 @@ class EdgeFactory(protocol.Factory):
             except:
                 pass
 
-        return defer.succeed({ 'mode': EdgeMode.name[self.mode] })
+        return defer.succeed({ 'mode': CubeMode.name[self.mode] })
 
     def get_mode(self, command):
-        return defer.succeed({ 'mode': EdgeMode.name[self.mode] })
+        return defer.succeed({ 'mode': CubeMode.name[self.mode] })
 
     # =------------------------------------------------------------------------=
 
