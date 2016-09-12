@@ -4,7 +4,6 @@ from twisted.internet import protocol, reactor, endpoints, defer
 from twisted.protocols import basic
 from neopixel import *
 from itertools import chain, repeat
-from collections import defaultdict
 import sys
 import json
 import uuid
@@ -17,16 +16,17 @@ LED_DMA        = 5       # DMA channel to use for generating signal (try 5)
 LED_BRIGHTNESS = 255     # Set to 0 for darkest and 255 for brightest
 
 # Kudos http://stackoverflow.com/a/1695250/772207
-#   and http://stackoverflow.com/a/23933745/772207
 def enum(*sequential, **named):
-    obj = defaultdict(lambda: None, zip(sequential, range(len(sequential))), **named)
-    reverse = defaultdict(lambda: None, ((value, key) for key, value in obj.iteritems()))
+    obj = dict(zip(sequential, range(len(sequential))), **named)
     enums = obj.copy()
+    reverse = dict((value, key) for key, value in obj.iteritems())
+    obj.setdefault(None)
+    reverse.setdefault(None)
     enums['lookup'] = obj
     enums['name'] = reverse
     return type('Enum', (), enums)
 
-EdgeMode = enum('Normal', 'Ambient', 'Critical')
+EdgeMode = enum('normal', 'ambient', 'critical')
 
 
 class EdgeProtocol(basic.LineReceiver):
@@ -60,7 +60,7 @@ class EdgeFactory(protocol.Factory):
         self.light_controller = light_controller
         self.active_locks = [ None ] * 6
         self.lock_map = {}
-        self.mode = EdgeMode.Normal
+        self.mode = EdgeMode.normal
 
         self.dispatch = {
             'setColors':   self.set_colors,
@@ -89,6 +89,12 @@ class EdgeFactory(protocol.Factory):
 
         if 'colors' not in command:
             return defer.fail(Exception('No colors parameter was specified'))
+
+        if 'mode' not in command:
+            command['mode'] = 'normal'
+
+        if EdgeMode.lookup[command['mode']] < self.mode:
+            return defer.fail(Exception('Specified mode is less than current device mode'))
 
         try:
             if 'lock' in command:
@@ -126,6 +132,12 @@ class EdgeFactory(protocol.Factory):
         if 'lights' not in command or len(command['lights']) < 1:
             return defer.fail(Exception('No light lock set specified'))
 
+        if 'mode' not in command:
+            command['mode'] = 'normal'
+
+        if EdgeMode.lookup[command['mode']] < self.mode:
+            return defer.fail(Exception('Specified mode is less than current device mode'))
+
         if len([ light for light in command['lights'] if self.active_locks[light] ]) > 0:
             return defer.fail(Exception('One or more requested lights already locked'))
 
@@ -161,19 +173,20 @@ class EdgeFactory(protocol.Factory):
             return defer.fail(Exception('No mode specified'))
 
         mode = EdgeMode.lookup[command['mode']]
-        if not mode:
+        if mode == None:
             return defer.fail(Exception('Unknown mode specified'))
 
-        self.mode = mode
+        if self.mode is not mode:
+            self.mode = mode
 
-        # also, clear all locks and reset the lights
-        for key in self.lock_map.keys():
-            self.clear_lock(key)
+            # also, clear all locks and reset the lights
+            for key in self.lock_map.keys():
+                self.clear_lock(key)
 
-        try:
-            self.light_controller.reset()
-        except:
-            pass
+            try:
+                self.light_controller.reset()
+            except:
+                pass
 
         return defer.succeed({ 'mode': EdgeMode.name[self.mode] })
 
