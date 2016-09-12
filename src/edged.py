@@ -4,7 +4,9 @@ from twisted.internet import protocol, reactor, endpoints, defer
 from twisted.protocols import basic
 from neopixel import *
 from itertools import chain, repeat
+import sys
 import json
+import uuid
 
 # LED strip configuration:
 LED_COUNT      = 6       # Number of LED pixels.
@@ -26,7 +28,6 @@ class EdgeProtocol(basic.LineReceiver):
                 'success': True,
                 'data': data
                 }) + "\r\n")
-            # self.transport.loseConnection()
         deferred.addCallback(writeResponse)
 
         def onError(err):
@@ -35,7 +36,6 @@ class EdgeProtocol(basic.LineReceiver):
                 'message': err.getErrorMessage(),
                 'trace': str(err)
                 }) + "\r\n")
-            self.transport.loseConnection()
         deferred.addErrback(onError)
 
 
@@ -44,9 +44,15 @@ class EdgeFactory(protocol.Factory):
 
     def __init__(self, light_controller):
         self.light_controller = light_controller
+        self.active_locks = [ None, None, None ]
+        self.lock_map = {}
         self.dispatch = {
-            'setColors': self.set_colors,
-            'getColors': self.get_colors
+            'setColors':   self.set_colors,
+            'getColors':   self.get_colors,
+            'requestLock': self.request_lock,
+            'releaseLock': self.release_lock,
+            'setMode':     self.set_mode,
+            'getMode':     self.get_mode
         }
 
     def parse_command(self, line):
@@ -83,14 +89,44 @@ class EdgeFactory(protocol.Factory):
             return defer.fail()
 
     def request_lock(self, command):
-        deferred = defer.Deferred()
-        deferred.errback(Exception('Not Implemented'))
-        return deferred
+        # duration - max millis to hold lock
+        # bars - which bars to lock, array of indices (0, 1, 2)
+
+        if 'duration' not in command:
+            return defer.fail(Exception('No lock duration specified'))
+
+        if 'bars' not in command or len(command['bars']) < 1:
+            return defer.fail(Exception('No bar lock set specified'))
+
+        if len([ bar for bar in command['bars'] if self.active_locks[bar] ]) > 0:
+            return defer.fail(Exception('One or more requested bars already locked'))
+
+        # Conditions met, let's award a lock
+        lock_code = str(uuid.uuid4())
+        for bar in command['bars']:
+            self.active_locks[bar] = lock_code
+
+        self.lock_map[lock_code] = reactor.callLater(
+            command['duration'] / 1000,
+            self.clear_lock,
+            lock_code
+        )
+
+        return defer.succeed({
+            'lock': lock_code,
+            'bars': command['bars'],
+            'duration': command['duration']
+        })
 
     def release_lock(self, command):
-        deferred = defer.Deferred()
-        deferred.errback(Exception('Not Implemented'))
-        return deferred
+        if 'lock' not in command:
+            return defer.fail(Exception('No lock code specified'))
+
+        if len([ code for code in self.active_locks if code == command['lock'] ]) < 1:
+            return defer.fail(Exception('Requested lock code does not exist'))
+
+        self.clear_lock(command['lock'])
+        return defer.succeed({ 'lock': command['lock'] })
 
     def set_mode(self, command):
         deferred = defer.Deferred()
@@ -101,6 +137,15 @@ class EdgeFactory(protocol.Factory):
         deferred = defer.Deferred()
         deferred.errback(Exception('Not Implemented'))
         return deferred
+
+    def clear_lock(self, lock_code):
+        call_id = self.lock_map.pop(lock_code, None)
+        if call_id and call_id.active():
+            call_id.cancel()
+
+        for index, code in enumerate(self.active_locks):
+            if code == lock_code:
+                self.active_locks[index] = None
 
 
 class LightController:
