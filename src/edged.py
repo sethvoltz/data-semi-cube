@@ -147,7 +147,7 @@ class EdgeFactory(protocol.Factory):
             self.active_locks[light] = lock_code
 
         self.lock_map[lock_code] = reactor.callLater(
-            command['duration'] / 1000,
+            command['duration'] / 1000.0,
             self.clear_lock,
             lock_code
         )
