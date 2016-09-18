@@ -2,11 +2,18 @@
 
 from twisted.internet import protocol, reactor, endpoints, defer
 from twisted.protocols import basic
-from neopixel import *
 from itertools import chain, repeat
 import sys
 import json
 import uuid
+import os
+
+DEBUG = False
+if os.environ.get('DEBUG', False) == 'yes':
+    DEBUG = True
+
+if not DEBUG:
+    from neopixel import *
 
 # LED strip configuration:
 LED_COUNT      = 6       # Number of LED pixels.
@@ -237,6 +244,40 @@ class EdgeFactory(protocol.Factory):
 
 
 # =----------------------------------------------------------------------------=
+class DummyLightController:
+    """Fake light controller for testing"""
+
+    def __init__(self, config):
+        self.current_colors = [0] * config['led_count']
+        self.config = config
+        self.reset()
+
+    def clean_color(self, value):
+        if value == None: return None
+        if isinstance(value, int): return value
+        if isinstance(value, basestring): return self.hex_to_rgb(value)
+        return None # fallback, unknown value type
+
+    def reset(self):
+        self.set([0] * self.config['led_count'])
+
+    def set(self, colors, save=True, show=True):
+        if len(colors) < self.config['led_count']:
+            raise Exception('Insufficient colors specified')
+
+        color_set = map(self.clean_color, colors[0:self.config['led_count']])
+
+        for i in range(self.config['led_count']):
+            if color_set[i] is not None:
+                if save: self.current_colors[i] = color_set[i]
+
+        return self.current_colors
+
+    def get(self):
+        return self.current_colors
+
+
+# =----------------------------------------------------------------------------=
 class LightController:
     """Run the lights themselves"""
 
@@ -296,13 +337,17 @@ class LightController:
 # =----------------------------------------------------------------------------=
 def main():
     print 'Starting Data Semi Cube Edge Service...'
-    light_controller = LightController({
-        'led_count': LED_COUNT,
-        'led_pin': LED_PIN,
-        'frequency': LED_FREQ_HZ,
-        'dma_channel': LED_DMA,
-        'brightness': LED_BRIGHTNESS
-    })
+    if DEBUG:
+        light_controller = DummyLightController({ 'led_count': LED_COUNT })
+
+    else:
+        light_controller = LightController({
+            'led_count': LED_COUNT,
+            'led_pin': LED_PIN,
+            'frequency': LED_FREQ_HZ,
+            'dma_channel': LED_DMA,
+            'brightness': LED_BRIGHTNESS
+        })
 
     endpoints.serverFromString(reactor, "tcp:8300").listen(EdgeFactory(light_controller))
     reactor.run()
