@@ -15,6 +15,10 @@ if os.environ.get('DEBUG', False) == 'yes':
 if not DEBUG:
     from neopixel import *
 
+# Local modules
+from cube import CubeMode
+
+# =------------------------------------------------------------------------------= Configuration =--=
 # LED strip configuration:
 LED_COUNT      = 6       # Number of LED pixels.
 LED_PIN        = 18      # GPIO pin connected to the pixels (must support PWM!)
@@ -22,22 +26,7 @@ LED_FREQ_HZ    = 800000  # LED signal frequency in hertz (usually 800khz)
 LED_DMA        = 5       # DMA channel to use for generating signal (try 5)
 LED_BRIGHTNESS = 255     # Set to 0 for darkest and 255 for brightest
 
-# =----------------------------------------------------------------------------=
-# Kudos http://stackoverflow.com/a/1695250/772207
-def enum(*sequential, **named):
-    obj = dict(zip(sequential, range(len(sequential))), **named)
-    enums = obj.copy()
-    reverse = dict((value, key) for key, value in obj.iteritems())
-    obj.setdefault(None)
-    reverse.setdefault(None)
-    enums['lookup'] = obj
-    enums['name'] = reverse
-    return type('Enum', (), enums)
-
-EdgeMode = enum('normal', 'ambient', 'critical')
-
-
-# =----------------------------------------------------------------------------=
+# =--------------------------------------------------------------------------= Network Protocol =--=
 class EdgeProtocol(basic.LineReceiver):
     def lineReceived(self, line):
         if not line.strip():
@@ -69,7 +58,7 @@ class EdgeFactory(protocol.Factory):
         self.light_controller = light_controller
         self.active_locks = [ None ] * 6
         self.lock_map = {}
-        self.mode = EdgeMode.normal
+        self.mode = CubeMode.normal
 
         self.dispatch = {
             'setColors':   self.set_colors,
@@ -93,6 +82,8 @@ class EdgeFactory(protocol.Factory):
 
         return self.dispatch[data['command']](data)
 
+    # Protocol Commands
+
     def set_colors(self, command):
         """
         Set the active color unless a lock is currently in place
@@ -108,7 +99,7 @@ class EdgeFactory(protocol.Factory):
         if 'mode' not in command:
             command['mode'] = 'normal'
 
-        if EdgeMode.lookup[command['mode']] < self.mode:
+        if CubeMode.lookup[command['mode']] < self.mode:
             return defer.fail(Exception('Specified mode is less than current device mode'))
 
         try:
@@ -117,12 +108,24 @@ class EdgeFactory(protocol.Factory):
                     return defer.fail(Exception('Lock code unknown or expired'))
 
                 else:
-                    locked_colors = [ x if self.active_locks[i] == command['lock'] else None for i, x in enumerate(command['colors']) ]
+                    locked_colors = [ color
+                        if self.active_locks[index] == command['lock']
+                        else None
+                        for index, color
+                        in enumerate(command['colors']) ]
                     self.light_controller.set(locked_colors, save=False)
 
             else:
-                locked_colors = [ x if self.active_locks[i] else None for i, x in enumerate(command['colors']) ]
-                active_colors = [ x if not self.active_locks[i] else None for i, x in enumerate(command['colors']) ]
+                locked_colors = [ color
+                    if self.active_locks[index]
+                    else None
+                    for index, color
+                    in enumerate(command['colors']) ]
+                active_colors = [ color
+                    if not self.active_locks[index]
+                    else None
+                    for index, color
+                    in enumerate(command['colors']) ]
                 self.light_controller.set(locked_colors, show=False)
                 self.light_controller.set(active_colors)
 
@@ -152,7 +155,7 @@ class EdgeFactory(protocol.Factory):
         if 'mode' not in command:
             command['mode'] = 'normal'
 
-        if EdgeMode.lookup[command['mode']] < self.mode:
+        if CubeMode.lookup[command['mode']] < self.mode:
             return defer.fail(Exception('Specified mode is less than current device mode'))
 
         if len([ light for light in command['lights'] if self.active_locks[light] ]) > 0:
@@ -202,7 +205,7 @@ class EdgeFactory(protocol.Factory):
         if 'mode' not in command:
             return defer.fail(Exception('No mode specified'))
 
-        mode = EdgeMode.lookup[command['mode']]
+        mode = CubeMode.lookup[command['mode']]
         if mode == None:
             return defer.fail(Exception('Unknown mode specified'))
 
@@ -218,12 +221,12 @@ class EdgeFactory(protocol.Factory):
             except:
                 pass
 
-        return defer.succeed({ 'mode': EdgeMode.name[self.mode] })
+        return defer.succeed({ 'mode': CubeMode.name[self.mode] })
 
     def get_mode(self, command):
-        return defer.succeed({ 'mode': EdgeMode.name[self.mode] })
+        return defer.succeed({ 'mode': CubeMode.name[self.mode] })
 
-    # =------------------------------------------------------------------------=
+    # Helper Functions
 
     def clear_lock(self, lock_code):
         call_id = self.lock_map.pop(lock_code, None)
@@ -231,7 +234,11 @@ class EdgeFactory(protocol.Factory):
             call_id.cancel()
 
         colors = self.light_controller.get()
-        locked_colors = [ x if self.active_locks[i] == lock_code else None for i, x in enumerate(colors) ]
+        locked_colors = [ color
+            if self.active_locks[index] == lock_code
+            else None
+            for index, color
+            in enumerate(colors) ]
 
         for index, code in enumerate(self.active_locks):
             if code == lock_code:
@@ -243,7 +250,7 @@ class EdgeFactory(protocol.Factory):
             pass # eat error
 
 
-# =----------------------------------------------------------------------------=
+# =--------------------------------------------------------------------= Dummy Light Controller =--=
 class DummyLightController:
     """Fake light controller for testing"""
 
@@ -277,7 +284,7 @@ class DummyLightController:
         return self.current_colors
 
 
-# =----------------------------------------------------------------------------=
+# =--------------------------------------------------------------------------= Light Controller =--=
 class LightController:
     """Run the lights themselves"""
 
@@ -334,7 +341,7 @@ class LightController:
         return self.current_colors
 
 
-# =----------------------------------------------------------------------------=
+# =--------------------------------------------------------------------------------------= Main =--=
 def main():
     print 'Starting Data Semi Cube Edge Service...'
     if DEBUG:
