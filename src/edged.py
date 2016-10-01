@@ -8,6 +8,7 @@ import sys
 import json
 import uuid
 import os
+import math
 
 DEBUG = False
 if os.environ.get('DEBUG', False) == 'yes':
@@ -394,9 +395,10 @@ class DeviceAutoMode:
 
         next_time = datetime.strftime(dates[0], '%H%M%S')
         next_mode = self.config[next_time]
+        seconds = math.ceil((dates[0] - datetime.now()).seconds + 1)
 
         print 'Scheduling mode', next_mode, 'at', next_time
-        reactor.callLater((dates[0] - datetime.now()).seconds, self.set_mode, next_mode)
+        reactor.callLater(seconds, self.set_mode, next_mode)
 
     def time_relative_now(self, time_str):
         now = datetime.now()
