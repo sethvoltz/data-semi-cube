@@ -4,6 +4,7 @@ After=multi-user.target
 
 [Service]
 Type=idle
+EnvironmentFile=/home/pi/Projects/data-semi-cube/.env
 ExecStart=/usr/bin/python /home/pi/Projects/data-semi-cube/src/edged.py
 
 [Install]

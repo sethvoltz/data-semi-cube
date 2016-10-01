@@ -3,6 +3,7 @@
 from twisted.internet import protocol, reactor, endpoints, defer
 from twisted.protocols import basic
 from itertools import chain, repeat
+from datetime import datetime, timedelta
 import sys
 import json
 import uuid
@@ -358,6 +359,45 @@ class LightController:
     def get(self):
         return self.current_colors
 
+# =--------------------------------------------------------------------------= Device Auto Mode =--=
+class DeviceAutoMode:
+    """Run the lights themselves"""
+
+    def __init__(self, config_json, factory):
+        print 'Initializing automatic device mode scheduler'
+        self.factory = factory
+        try:
+            self.config = json.loads(config_json)
+            self.start_next_timer()
+        except:
+            self.config = {}
+
+    def start_next_timer(self):
+        dates = map(self.time_relative_now, self.config.keys())
+        dates.sort()
+
+        if len(dates) < 1: return
+
+        next_time = datetime.strftime(dates[0], '%H%M%S')
+        next_mode = self.config[next_time]
+
+        print 'Scheduling mode', next_mode, 'at', next_time
+        reactor.callLater((dates[0] - datetime.now()).seconds, self.set_mode, next_mode)
+
+    def time_relative_now(self, time_str):
+        now = datetime.now()
+        target = datetime.strptime(time_str, '%H%M%S').replace(year=now.year, month=now.month, day=now.day)
+        if target < now: target += timedelta(days=1)
+        return target
+
+    def set_mode(self, mode):
+        try:
+            self.factory.set_mode({ 'mode': mode })
+        except Exception as e:
+            print 'Error setting automatic mode', mode
+        finally:
+            self.start_next_timer()
+
 
 # =--------------------------------------------------------------------------------------= Main =--=
 def main():
@@ -374,7 +414,10 @@ def main():
             'brightness': LED_BRIGHTNESS
         })
 
-    endpoints.serverFromString(reactor, "tcp:8300").listen(EdgeFactory(light_controller))
+    edge_factory = EdgeFactory(light_controller)
+    endpoints.serverFromString(reactor, "tcp:8300").listen(edge_factory)
+    auto_mode = DeviceAutoMode(os.environ.get('CUBE_AUTO_MODE', '{}'), edge_factory)
+
     reactor.run()
     print 'Edge Service Started'
 
