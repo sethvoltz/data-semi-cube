@@ -27,6 +27,20 @@ LED_FREQ_HZ    = 800000  # LED signal frequency in hertz (usually 800khz)
 LED_DMA        = 5       # DMA channel to use for generating signal (try 5)
 LED_BRIGHTNESS = 255     # Set to 0 for darkest and 255 for brightest
 
+
+# =-------------------------------------------------------------------------= Unbuffered Stdout =--=
+class Unbuffered(object):
+   def __init__(self, stream):
+       self.stream = stream
+   def write(self, data):
+       self.stream.write(data)
+       self.stream.flush()
+   def __getattr__(self, attr):
+       return getattr(self.stream, attr)
+
+# Make sure stdout is always flushed so it's picked up by journald
+sys.stdout = Unbuffered(sys.stdout)
+
 # =--------------------------------------------------------------------------= Network Protocol =--=
 class EdgeProtocol(basic.LineReceiver):
     def lineReceived(self, line):
