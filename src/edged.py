@@ -59,6 +59,7 @@ class EdgeFactory(protocol.Factory):
         self.active_locks = [ None ] * 6
         self.lock_map = {}
         self.mode = CubeMode.normal
+        self.last_set_mode = None
 
         self.dispatch = {
             'setColors':   self.set_colors,
@@ -99,7 +100,8 @@ class EdgeFactory(protocol.Factory):
         if 'mode' not in command:
             command['mode'] = 'normal'
 
-        if CubeMode.lookup[command['mode']] < self.mode:
+        mode = CubeMode.lookup[command['mode']]
+        if mode < self.mode:
             return defer.fail(Exception('Specified mode is less than current device mode'))
 
         try:
@@ -128,6 +130,8 @@ class EdgeFactory(protocol.Factory):
                     in enumerate(command['colors']) ]
                 self.light_controller.set(locked_colors, show=False)
                 self.light_controller.set(active_colors)
+
+                self.last_set_mode = mode
 
             return defer.succeed({ 'colors': self.light_controller.get() })
         except:
@@ -166,11 +170,14 @@ class EdgeFactory(protocol.Factory):
         for light in command['lights']:
             self.active_locks[light] = lock_code
 
-        self.lock_map[lock_code] = reactor.callLater(
-            command['duration'] / 1000.0,
-            self.clear_lock,
-            lock_code
-        )
+        self.lock_map[lock_code] = [
+            command['mode'],
+            reactor.callLater(
+                command['duration'] / 1000.0,
+                self.clear_lock,
+                lock_code
+            ),
+        ]
 
         return defer.succeed({
             'lock': lock_code,
@@ -210,14 +217,18 @@ class EdgeFactory(protocol.Factory):
             return defer.fail(Exception('Unknown mode specified'))
 
         if self.mode is not mode:
+            print "Updating device mode to", command['mode']
             self.mode = mode
 
-            # also, clear all locks and reset the lights
+            # clear all locks less than current mode
             for key in self.lock_map.keys():
-                self.clear_lock(key)
+                if self.lock_map[key][0] < self.mode:
+                    self.clear_lock(key)
 
+            # reset the lights if set by lower mode
             try:
-                self.light_controller.reset()
+                if self.last_set_mode < self.mode:
+                    self.light_controller.reset()
             except:
                 pass
 
@@ -229,7 +240,7 @@ class EdgeFactory(protocol.Factory):
     # Helper Functions
 
     def clear_lock(self, lock_code):
-        call_id = self.lock_map.pop(lock_code, None)
+        [lock_mode, call_id] = self.lock_map.pop(lock_code, None)
         if call_id and call_id.active():
             call_id.cancel()
 
@@ -265,7 +276,13 @@ class DummyLightController:
         if isinstance(value, basestring): return self.hex_to_rgb(value)
         return None # fallback, unknown value type
 
+    def hex_to_rgb(self, value):
+        value = value.lstrip('#')
+        lv = len(value)
+        return tuple(int(value[i:i + lv // 3], 16) for i in range(0, lv, lv // 3))
+
     def reset(self):
+        print 'Resetting colors to off'
         self.set([0] * self.config['led_count'])
 
     def set(self, colors, save=True, show=True):
@@ -278,6 +295,7 @@ class DummyLightController:
             if color_set[i] is not None:
                 if save: self.current_colors[i] = color_set[i]
 
+        print 'Current Colors: ' + json.dumps(self.current_colors)
         return self.current_colors
 
     def get(self):
