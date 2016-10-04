@@ -1,46 +1,51 @@
 #!/usr/bin/python
 
-from twisted.internet import protocol, reactor, endpoints, defer
-from twisted.protocols import basic
-from itertools import chain, repeat
-from datetime import datetime, timedelta
-import sys
 import json
-import uuid
-import os
 import math
+import os
+import sys
+import uuid
+
+from datetime import datetime, timedelta
+
+from cube import CubeMode
+
+from twisted.internet import defer, endpoints, protocol, reactor
+from twisted.protocols import basic
+
 
 DEBUG = False
 if os.environ.get('DEBUG', False) == 'yes':
     DEBUG = True
 
 if not DEBUG:
-    from neopixel import *
+    from neopixel import Adafruit_NeoPixel, ws, Color
 
-# Local modules
-from cube import CubeMode
 
-# =------------------------------------------------------------------------------= Configuration =--=
+# =-----------------------------------------------------------------------------= Configuration =--=
 # LED strip configuration:
-LED_COUNT      = 6       # Number of LED pixels.
-LED_PIN        = 18      # GPIO pin connected to the pixels (must support PWM!)
-LED_FREQ_HZ    = 800000  # LED signal frequency in hertz (usually 800khz)
-LED_DMA        = 5       # DMA channel to use for generating signal (try 5)
+LED_COUNT = 6            # Number of LED pixels.
+LED_PIN = 18             # GPIO pin connected to the pixels (must support PWM!)
+LED_FREQ_HZ = 800000     # LED signal frequency in hertz (usually 800khz)
+LED_DMA = 5              # DMA channel to use for generating signal (try 5)
 LED_BRIGHTNESS = 255     # Set to 0 for darkest and 255 for brightest
 
 
 # =-------------------------------------------------------------------------= Unbuffered Stdout =--=
 class Unbuffered(object):
-   def __init__(self, stream):
-       self.stream = stream
-   def write(self, data):
-       self.stream.write(data)
-       self.stream.flush()
-   def __getattr__(self, attr):
-       return getattr(self.stream, attr)
+    def __init__(self, stream):
+        self.stream = stream
+
+    def write(self, data):
+        self.stream.write(data)
+        self.stream.flush()
+
+    def __getattr__(self, attr):
+        return getattr(self.stream, attr)
 
 # Make sure stdout is always flushed so it's picked up by journald
 sys.stdout = Unbuffered(sys.stdout)
+
 
 # =--------------------------------------------------------------------------= Network Protocol =--=
 class EdgeProtocol(basic.LineReceiver):
@@ -55,7 +60,7 @@ class EdgeProtocol(basic.LineReceiver):
             self.transport.write(json.dumps({
                 'success': True,
                 'data': data
-                }) + "\r\n")
+            }) + "\r\n")
         deferred.addCallback(writeResponse)
 
         def onError(err):
@@ -63,7 +68,7 @@ class EdgeProtocol(basic.LineReceiver):
                 'success': False,
                 'message': err.getErrorMessage(),
                 'trace': str(err)
-                }) + "\r\n")
+            }) + "\r\n")
         deferred.addErrback(onError)
 
 
@@ -72,18 +77,18 @@ class EdgeFactory(protocol.Factory):
 
     def __init__(self, light_controller):
         self.light_controller = light_controller
-        self.active_locks = [ None ] * 6
+        self.active_locks = [None] * 6
         self.lock_map = {}
         self.mode = CubeMode.normal
         self.last_set_mode = None
 
         self.dispatch = {
-            'setColors':   self.set_colors,
-            'getColors':   self.get_colors,
+            'setColors': self.set_colors,
+            'getColors': self.get_colors,
             'requestLock': self.request_lock,
             'releaseLock': self.release_lock,
-            'setMode':     self.set_mode,
-            'getMode':     self.get_mode
+            'setMode': self.set_mode,
+            'getMode': self.get_mode
         }
 
     def parse_command(self, line):
@@ -126,37 +131,43 @@ class EdgeFactory(protocol.Factory):
                     return defer.fail(Exception('Lock code unknown or expired'))
 
                 else:
-                    locked_colors = [ color
+                    locked_colors = [
+                        color
                         if self.active_locks[index] == command['lock']
                         else None
                         for index, color
-                        in enumerate(command['colors']) ]
+                        in enumerate(command['colors'])
+                    ]
                     self.light_controller.set(locked_colors, save=False)
 
             else:
-                locked_colors = [ color
+                locked_colors = [
+                    color
                     if self.active_locks[index]
                     else None
                     for index, color
-                    in enumerate(command['colors']) ]
-                active_colors = [ color
+                    in enumerate(command['colors'])
+                ]
+                active_colors = [
+                    color
                     if not self.active_locks[index]
                     else None
                     for index, color
-                    in enumerate(command['colors']) ]
+                    in enumerate(command['colors'])
+                ]
                 self.light_controller.set(locked_colors, show=False)
                 self.light_controller.set(active_colors)
 
                 self.last_set_mode = mode
 
-            return defer.succeed({ 'colors': self.light_controller.get() })
+            return defer.succeed({'colors': self.light_controller.get()})
         except:
             return defer.fail()
 
     def get_colors(self, command):
         try:
             colors = self.light_controller.get()
-            return defer.succeed({ 'colors': colors })
+            return defer.succeed({'colors': colors})
         except:
             return defer.fail()
 
@@ -178,7 +189,7 @@ class EdgeFactory(protocol.Factory):
         if CubeMode.lookup[command['mode']] < self.mode:
             return defer.fail(Exception('Specified mode is less than current device mode'))
 
-        if len([ light for light in command['lights'] if self.active_locks[light] ]) > 0:
+        if len([light for light in command['lights'] if self.active_locks[light]]) > 0:
             return defer.fail(Exception('One or more requested lights already locked'))
 
         # Conditions met, let's award a lock
@@ -209,11 +220,11 @@ class EdgeFactory(protocol.Factory):
         if 'lock' not in command:
             return defer.fail(Exception('No lock code specified'))
 
-        if len([ code for code in self.active_locks if code == command['lock'] ]) < 1:
+        if len([code for code in self.active_locks if code == command['lock']]) < 1:
             return defer.fail(Exception('Requested lock code does not exist'))
 
         self.clear_lock(command['lock'])
-        return defer.succeed({ 'lock': command['lock'] })
+        return defer.succeed({'lock': command['lock']})
 
     def set_mode(self, command):
         """
@@ -229,7 +240,7 @@ class EdgeFactory(protocol.Factory):
             return defer.fail(Exception('No mode specified'))
 
         mode = CubeMode.lookup[command['mode']]
-        if mode == None:
+        if mode is None:
             return defer.fail(Exception('Unknown mode specified'))
 
         if self.mode is not mode:
@@ -248,10 +259,10 @@ class EdgeFactory(protocol.Factory):
             except:
                 pass
 
-        return defer.succeed({ 'mode': CubeMode.name[self.mode] })
+        return defer.succeed({'mode': CubeMode.name[self.mode]})
 
     def get_mode(self, command):
-        return defer.succeed({ 'mode': CubeMode.name[self.mode] })
+        return defer.succeed({'mode': CubeMode.name[self.mode]})
 
     # Helper Functions
 
@@ -261,11 +272,13 @@ class EdgeFactory(protocol.Factory):
             call_id.cancel()
 
         colors = self.light_controller.get()
-        locked_colors = [ color
+        locked_colors = [
+            color
             if self.active_locks[index] == lock_code
             else None
             for index, color
-            in enumerate(colors) ]
+            in enumerate(colors)
+        ]
 
         for index, code in enumerate(self.active_locks):
             if code == lock_code:
@@ -274,7 +287,7 @@ class EdgeFactory(protocol.Factory):
         try:
             self.light_controller.set(locked_colors, save=False)
         except:
-            pass # eat error
+            pass  # eat error
 
 
 # =--------------------------------------------------------------------= Dummy Light Controller =--=
@@ -287,10 +300,13 @@ class DummyLightController:
         self.reset()
 
     def clean_color(self, value):
-        if value == None: return None
-        if isinstance(value, int): return value
-        if isinstance(value, basestring): return self.hex_to_rgb(value)
-        return None # fallback, unknown value type
+        if value is None:
+            return None
+        if isinstance(value, int):
+            return value
+        if isinstance(value, basestring):
+            return self.hex_to_rgb(value)
+        return None  # fallback, unknown value type
 
     def hex_to_rgb(self, value):
         value = value.lstrip('#')
@@ -309,7 +325,8 @@ class DummyLightController:
 
         for i in range(self.config['led_count']):
             if color_set[i] is not None:
-                if save: self.current_colors[i] = color_set[i]
+                if save:
+                    self.current_colors[i] = color_set[i]
 
         print 'Current Colors: ' + json.dumps(self.current_colors)
         return self.current_colors
@@ -332,9 +349,9 @@ class LightController:
             config['led_pin'],
             config['frequency'],
             config['dma_channel'],
-            False, # invert signal
+            False,  # invert signal
             config['brightness'],
-            0, # channel (default 0)
+            0,  # channel (default 0)
             ws.WS2811_STRIP_GRB)
 
         # Intialize the library (must be called once before other functions).
@@ -342,10 +359,13 @@ class LightController:
         self.reset()
 
     def clean_color(self, value):
-        if value == None: return None
-        if isinstance(value, int): return value
-        if isinstance(value, basestring): return self.hex_to_rgb(value)
-        return None # fallback, unknown value type
+        if value is None:
+            return None
+        if isinstance(value, int):
+            return value
+        if isinstance(value, basestring):
+            return self.hex_to_rgb(value)
+        return None  # fallback, unknown value type
 
     def hex_to_rgb(self, value):
         value = value.lstrip('#')
@@ -364,8 +384,10 @@ class LightController:
 
         for i in range(self.strip.numPixels()):
             if color_set[i] is not None:
-                if show: self.strip.setPixelColor(i, color_set[i])
-                if save: self.current_colors[i] = color_set[i]
+                if show:
+                    self.strip.setPixelColor(i, color_set[i])
+                if save:
+                    self.current_colors[i] = color_set[i]
 
         self.strip.show()
 
@@ -373,6 +395,7 @@ class LightController:
 
     def get(self):
         return self.current_colors
+
 
 # =--------------------------------------------------------------------------= Device Auto Mode =--=
 class DeviceAutoMode:
@@ -391,7 +414,8 @@ class DeviceAutoMode:
         dates = map(self.time_relative_now, self.config.keys())
         dates.sort()
 
-        if len(dates) < 1: return
+        if len(dates) < 1:
+            return
 
         next_time = datetime.strftime(dates[0], '%H%M%S')
         next_mode = self.config[next_time]
@@ -402,14 +426,19 @@ class DeviceAutoMode:
 
     def time_relative_now(self, time_str):
         now = datetime.now()
-        target = datetime.strptime(time_str, '%H%M%S').replace(year=now.year, month=now.month, day=now.day)
-        if target < now: target += timedelta(days=1)
+        target = datetime.strptime(time_str, '%H%M%S').replace(
+            year=now.year,
+            month=now.month,
+            day=now.day)
+
+        if target < now:
+            target += timedelta(days=1)
         return target
 
     def set_mode(self, mode):
         try:
-            self.factory.set_mode({ 'mode': mode })
-        except Exception as e:
+            self.factory.set_mode({'mode': mode})
+        except Exception:
             print 'Error setting automatic mode', mode
         finally:
             self.start_next_timer()
@@ -419,7 +448,7 @@ class DeviceAutoMode:
 def main():
     print 'Starting Data Semi Cube Edge Service...'
     if DEBUG:
-        light_controller = DummyLightController({ 'led_count': LED_COUNT })
+        light_controller = DummyLightController({'led_count': LED_COUNT})
 
     else:
         light_controller = LightController({
@@ -432,7 +461,7 @@ def main():
 
     edge_factory = EdgeFactory(light_controller)
     endpoints.serverFromString(reactor, "tcp:8300").listen(edge_factory)
-    auto_mode = DeviceAutoMode(os.environ.get('CUBE_AUTO_MODE', '{}'), edge_factory)
+    DeviceAutoMode(os.environ.get('CUBE_AUTO_MODE', '{}'), edge_factory)
 
     reactor.run()
     print 'Edge Service Started'
